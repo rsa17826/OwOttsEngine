@@ -67,9 +67,16 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.9.0")
-    implementation("com.github.k2-fsa:sherpa-onnx:v1.13.0")
+    implementation("com.github.k2-fsa:sherpa-onnx:v2.0.1")
+    // text -> phonemes frontend (sherpa-onnx itself no longer bundles espeak-ng since v2.0.0)
+    implementation("com.github.csukuangfj.piper-phonemize:piper-phonemize:v1.5.9")
     implementation("androidx.preference:preference:1.2.1")
     implementation("com.github.woheller69:FreeDroidWarn:+")
     implementation("org.jsoup:jsoup:1.22.1")
     implementation ("androidx.work:work-runtime:2.10.2")
+}
+// JitPack publishes the same sherpa-onnx classes both in the AAR (with the native libs)
+// and in a plain -jvm jar; keep only the AAR to avoid "Duplicate class" errors.
+configurations.all {
+    exclude(group = "com.github.k2-fsa.sherpa-onnx", module = "sherpa-onnx-jvm")
 }

@@ -539,10 +539,10 @@ class MainActivity : ComponentActivity() {
                                                 if (preferenceHelper.getStripSSML()) sampleText = TtsEngine.stripSsmlTags(sampleText)
 
                                                 CoroutineScope(Dispatchers.Default).launch {
-                                                    TtsEngine.tts!!.generateWithCallback(
-                                                        text = sampleText,
-                                                        sid = TtsEngine.speakerId.value,
-                                                        speed = TtsEngine.speed.value,
+                                                    val (genText, genConfig) = TtsEngine.prepareGeneration(sampleText)
+                                                    TtsEngine.tts!!.generateWithConfigAndCallback(
+                                                        text = genText,
+                                                        config = genConfig,
                                                         callback = ::callback,
                                                     )
                                                 }.start()

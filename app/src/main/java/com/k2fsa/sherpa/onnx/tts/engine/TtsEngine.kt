@@ -5,6 +5,9 @@ import android.util.Log
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import com.github.csukuangfj.piper.phonemize.piperPhonemizeInitialize
+import com.github.csukuangfj.piper.phonemize.piperPhonemizeText
+import com.k2fsa.sherpa.onnx.GenerationConfig
 import com.k2fsa.sherpa.onnx.OfflineTts
 import com.k2fsa.sherpa.onnx.getOfflineTtsConfig
 import org.jsoup.Jsoup
@@ -19,6 +22,8 @@ object TtsEngine {
     // https://en.wikipedia.org/wiki/ISO_639-3
     var lang: String? = ""
     var country: String? = ""
+    var modelType: String = "" // "vits-piper" or "vits-coqui"
+    private var phonemizerInitialized = false
 
     var volume: MutableState<Float> = mutableFloatStateOf(1.0F)
     var speed: MutableState<Float> = mutableFloatStateOf(1.0F)
@@ -31,7 +36,6 @@ object TtsEngine {
     private var ruleFsts: String? = null
     private var ruleFars: String? = null
     private var lexicon: String? = null
-    private var dataDir: String = "espeak-ng-data"
     private var dictDir: String? = null
 
     @JvmStatic
@@ -69,6 +73,7 @@ object TtsEngine {
         val currentLanguage = db.allInstalledLanguages.first { it.lang == language }
         this.lang = language
         this.country = currentLanguage.country
+        this.modelType = currentLanguage.type
         this.speed.value = currentLanguage.speed
         this.speakerId.value = currentLanguage.sid
         this.volume.value = currentLanguage.volume
@@ -90,9 +95,9 @@ object TtsEngine {
 
         val modelDir = "$externalFilesDir/$lang$country"
 
-        var newDataDir = ""
-        if (dataDir != null) {
-            newDataDir = copyDataDir(context, dataDir!!)
+        if (modelType == "vits-piper" && !phonemizerInitialized) {
+            piperPhonemizeInitialize(context)
+            phonemizerInitialized = true
         }
 
         if (dictDir != null) {
@@ -108,7 +113,7 @@ object TtsEngine {
             vocoder = vocoder ?: "",
             voices = voices ?: "",
             lexicon = lexicon ?: "",
-            dataDir = newDataDir ?: "",
+            dataDir = "", // ignored since sherpa-onnx v2.0.0
             dictDir = dictDir ?: "",
             ruleFsts = ruleFsts ?: "",
             ruleFars = ruleFars ?: ""
@@ -121,6 +126,28 @@ object TtsEngine {
         tts = OfflineTts(assetManager = null, config = configDebugOff)
         ttsCache[lang] = tts!!
         Log.i(TAG, "TTS cache size:"+ ttsCache.size)
+    }
+
+
+    // Returns the (text, config) pair to pass to generateWithConfigAndCallback.
+    // Piper models are phonemized here so the owo rules can run on the phonemes.
+    fun prepareGeneration(text: String): Pair<String, GenerationConfig> {
+        val config = GenerationConfig(sid = speakerId.value, speed = speed.value)
+        if (modelType != "vits-piper") return Pair(text, config)
+        config.phonemeCodepoints = owoPhonemize(text)
+        return Pair("", config) // text already phonemized -> empty string
+    }
+
+    private fun owoPhonemize(text: String): Array<IntArray> {
+        val voice = tts!!.lang()
+        if (voice.isEmpty()) throw RuntimeException("The model has no language information (needed for phonemizing)")
+        val result = piperPhonemizeText(text, voice)
+            ?: throw RuntimeException("Failed to phonemize the text")
+        try {
+            return Array(result.numSentences) { i -> OwoPhonemes.apply(result.getPhonemes(i)) }
+        } finally {
+            result.close()
+        }
     }
 
     private fun copyDataDir(context: Context, dataDir: String): String {

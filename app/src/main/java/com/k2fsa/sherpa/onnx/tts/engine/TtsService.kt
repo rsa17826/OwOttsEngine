@@ -111,9 +111,10 @@ class TtsService : TextToSpeechService() {
 
         // FIX: Use a function reference (::ttsCallback) instead of an inline lambda.
         // This forces the Kotlin compiler to generate the correct JNI signature: ([F)Ljava/lang/Integer;
+        val (genText, genConfig) = TtsEngine.prepareGeneration(text)
         tts.generateWithConfigAndCallback(
-            text = text,
-            config = GenerationConfig(sid = TtsEngine.speakerId.value, speed = TtsEngine.speed.value),
+            text = genText,
+            config = genConfig,
             callback = ::ttsCallback,
         )
 
