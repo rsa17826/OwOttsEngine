@@ -13,13 +13,9 @@ object OwoPhonemes {
     private const val STRESS = "ˈˌ"
     private const val VOWELS = "aeiouæɑɒɔəɛɜɪʊʌɐɚɝɨʉøœyɯɤɘɵɞ"
 
-    // chance that a word gets a stutter, e.g. "h,h,həwˈoʊ"
-    var stutterChance = 0.08
-
     private val rules: List<(String) -> String> = listOf(
         ::rToW,
         ::nVowelToNy,
-        ::stutter,
     )
 
     fun apply(sentence: IntArray): IntArray {
@@ -48,13 +44,4 @@ object OwoPhonemes {
         }
         return sb.toString()
     }
-
-    // repeat the first consonant of some longer words, with a tiny pause
-    private fun stutter(s: String): String =
-        s.split(" ").joinToString(" ") { w ->
-            val core = w.trimStart { STRESS.indexOf(it) >= 0 }
-            if (core.length > 3 && core[0].isLetter() && VOWELS.indexOf(core[0]) < 0 &&
-                Random.nextDouble() < stutterChance
-            ) "${core[0]},${core[0]},$w" else w
-        }
 }
