@@ -112,6 +112,7 @@ class TtsService : TextToSpeechService() {
         // FIX: Use a function reference (::ttsCallback) instead of an inline lambda.
         // This forces the Kotlin compiler to generate the correct JNI signature: ([F)Ljava/lang/Integer;
         val (genText, genConfig) = TtsEngine.prepareGeneration(text)
+        genConfig.speed /= TtsEngine.owoShift() // cancel the duration change from the resample in ttsCallback
         tts.generateWithConfigAndCallback(
             text = genText,
             config = genConfig,
@@ -131,13 +132,18 @@ class TtsService : TextToSpeechService() {
 
         val samples: ByteArray
 
-        if (pitch != 100f) {   //if not default pitch, play samples faster or slower. Speed has already been compensated before generation, see above
-            val speedFactor = pitch / 100f
+        val speedFactor = pitch / 100f * TtsEngine.owoShift()
+        if (speedFactor != 1f) {   //if not default pitch, play samples faster or slower. Speed has already been compensated before generation, see above
             val newSampleCount = (floatSamples.size / speedFactor).toInt()
             val newSamples = FloatArray(newSampleCount)
 
             for (i in 0 until newSampleCount) {
-                newSamples[i] = floatSamples[(i * speedFactor).toInt()] * TtsEngine.volume.value
+                // linear interpolation between neighbouring samples (avoids the grain of nearest-sample picking)
+                val pos = i * speedFactor
+                val i0 = pos.toInt()
+                val i1 = minOf(i0 + 1, floatSamples.size - 1)
+                val frac = pos - i0
+                newSamples[i] = (floatSamples[i0] * (1f - frac) + floatSamples[i1] * frac) * TtsEngine.volume.value
             }
             // Convert the modified FloatArray to ByteArray
             samples = floatArrayToByteArray(newSamples)

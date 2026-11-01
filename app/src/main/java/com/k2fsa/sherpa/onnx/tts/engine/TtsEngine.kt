@@ -129,6 +129,11 @@ object TtsEngine {
     }
 
 
+    // Extra pitch raise for the owo voice, applied by resampling (like ffmpeg asetrate+atempo):
+    // playback is OWO_PITCH x faster and generation is OWO_PITCH x slower, so duration is unchanged.
+    const val OWO_PITCH = 1.2f
+    fun owoShift(): Float = if (modelType == "vits-piper") OWO_PITCH else 1f
+
     // Returns the (text, config) pair to pass to generateWithConfigAndCallback.
     // Piper models are phonemized here so the owo rules can run on the phonemes.
     fun prepareGeneration(text: String): Pair<String, GenerationConfig> {
