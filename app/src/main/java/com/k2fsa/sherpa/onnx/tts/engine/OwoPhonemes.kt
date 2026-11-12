@@ -30,7 +30,7 @@ object OwoPhonemes {
             val c = s[i]
             if (c == ' '.code) lastSpace = i
             val len = i + 1 - start
-            if ((c == ','.code || c == ';'.code || c == ':'.code) && len >= minLen) {
+            if ((c == '\n'.code) && len >= minLen) {
                 add(start, i + 1)
                 start = i + 1
                 lastSpace = -1
@@ -43,6 +43,13 @@ object OwoPhonemes {
         add(start, s.size)
         return out
     }
+    /** Splits one chunk at the last space before [max] phonemes (used to make the very first chunk tiny). */
+    fun splitFirstChunk(chunk: IntArray, max: Int): List<IntArray> {
+        if (chunk.size <= max) return listOf(chunk)
+        val cut = (0 until max).lastOrNull { chunk[it] == ' '.code } ?: return listOf(chunk)
+        return listOf(chunk.copyOfRange(0, cut), chunk.copyOfRange(cut + 1, chunk.size))
+    }
+
     private val rules: List<(String) -> String> = listOf(
         ::rToW,
         ::nVowelToNy,

@@ -7,7 +7,7 @@ import android.speech.tts.SynthesisRequest
 import android.speech.tts.TextToSpeech
 import android.speech.tts.TextToSpeechService
 import android.util.Log
-
+import android.os.SystemClock
 
 class TtsService : TextToSpeechService() {
 
@@ -139,7 +139,10 @@ class TtsService : TextToSpeechService() {
     // This MUST be a member function so we can use the ::ttsCallback reference
     private fun ttsCallback(floatSamples: FloatArray): Int {
         val cb = currentSynthesisCallback ?: return 0
-        if (!firstAudioLogged) { firstAudioLogged = true; lat("first audio chunk from model (${floatSamples.size} samples)") }
+        // log every chunk: audio length vs time taken (real-time factor > 1 means generation is slower than playback)
+        val audioSec = floatSamples.size.toFloat() / TtsEngine.tts!!.sampleRate()
+        lat("model chunk: %.2f s of audio, %d samples%s".format(audioSec, floatSamples.size, if (!firstAudioLogged) " (FIRST)" else ""))
+        firstAudioLogged = true
         val pitch = currentPitch
 
         val samples: ByteArray

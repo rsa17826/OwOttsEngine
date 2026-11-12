@@ -119,7 +119,7 @@ object TtsEngine {
             dictDir = dictDir ?: "",
             ruleFsts = ruleFsts ?: "",
             ruleFars = ruleFars ?: "",
-            numThreads = minOf(4, Runtime.getRuntime().availableProcessors())
+            numThreads = TTS_THREADS
         )
 
         val configDebugOff = config.copy(  // create a new instance with debug switched off
@@ -137,6 +137,11 @@ object TtsEngine {
     // Extra pitch raise for the owo voice, applied by resampling (like ffmpeg asetrate+atempo):
     // playback is OWO_PITCH x faster and generation is OWO_PITCH x slower, so duration is unchanged.
     const val OWO_PITCH = 1.2f
+
+    // Tuning for slow phones: the first chunk of an utterance is at most this many phonemes (~3 words at 20)
+    const val FIRST_CHUNK_MAX_PHONEMES = 2000000
+    // ONNX Runtime threads. More is not always faster on big.LITTLE phones; try 1, 2, 3, 4 and compare the LATENCY logs.
+    const val TTS_THREADS = 2
     fun owoShift(): Float = if (modelType == "vits-piper") OWO_PITCH else 1f
 
     // Returns the (text, config) pair to pass to generateWithConfigAndCallback.
@@ -156,9 +161,12 @@ object TtsEngine {
         try {
             // split into short chunks (before the owo rules, which add commas for stutters) so the
             // first audio is ready sooner; each chunk is generated and played as its own "sentence"
-            return Array(result.numSentences) { i -> OwoPhonemes.splitForStreaming(result.getPhonemes(i)) }
-                .flatMap { chunks -> chunks.map { OwoPhonemes.apply(it) } }
-                .toTypedArray()
+            val chunks = (0 until result.numSentences)
+                .flatMap { i -> OwoPhonemes.splitForStreaming(result.getPhonemes(i)) }
+            // the first chunk is split again so the first audio only waits for a few words
+            val withSmallFirst = if (chunks.isEmpty()) chunks
+                else OwoPhonemes.splitFirstChunk(chunks.first(), FIRST_CHUNK_MAX_PHONEMES) + chunks.drop(1)
+            return withSmallFirst.map { OwoPhonemes.apply(it) }.toTypedArray()
         } finally {
             result.close()
         }
