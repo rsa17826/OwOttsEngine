@@ -14,6 +14,10 @@ class TtsService : TextToSpeechService() {
     // Member variables to hold state for the callback
     private var currentPitch = 100f
     private var currentSynthesisCallback: SynthesisCallback? = null
+    // latency instrumentation (look for "LATENCY" in logcat)
+    private var reqStart = 0L
+    private var firstAudioLogged = false
+    private fun lat(what: String) = Log.i(TAG, "LATENCY ${SystemClock.elapsedRealtime() - reqStart} ms since request: $what")
 
     override fun onCreate() {
         Log.i(TAG, "onCreate tts service")
@@ -21,7 +25,9 @@ class TtsService : TextToSpeechService() {
         val preferenceHelper = PreferenceHelper(this)
         val language = preferenceHelper.getCurrentLanguage()
         // see https://github.com/Miserlou/Android-SDK-Samples/blob/master/TtsEngine/src/com/example/android/ttsengine/RobotSpeakTtsService.java#L68
-        onLoadLanguage(language, "", "")
+        val t = SystemClock.elapsedRealtime()
+         onLoadLanguage(language, "", "")
+        Log.i(TAG, "LATENCY service onCreate model load took ${SystemClock.elapsedRealtime() - t} ms")
     }
 
     override fun onDestroy() {
@@ -67,6 +73,8 @@ class TtsService : TextToSpeechService() {
 
     override fun onSynthesizeText(request: SynthesisRequest?, callback: SynthesisCallback?) {
         Log.i(TAG, "onSynthesizeText")
+        reqStart = SystemClock.elapsedRealtime()
+        firstAudioLogged = false
         if (TtsEngine.tts == null || request == null || callback == null) {
             return
         }
@@ -81,6 +89,7 @@ class TtsService : TextToSpeechService() {
             return
         } else {
             TtsEngine.createTts(application, language)
+            lat("createTts done")
         }
 
         val preferenceHelper = PreferenceHelper(this)
@@ -112,6 +121,8 @@ class TtsService : TextToSpeechService() {
         // FIX: Use a function reference (::ttsCallback) instead of an inline lambda.
         // This forces the Kotlin compiler to generate the correct JNI signature: ([F)Ljava/lang/Integer;
         val (genText, genConfig) = TtsEngine.prepareGeneration(text)
+        Log.i(TAG, "owo shift=${TtsEngine.owoShift()} modelType=${TtsEngine.modelType} genSpeed=${genConfig.speed}")
+        lat("phonemized (${genConfig.phonemeCodepoints?.size ?: 0} chunks)")
         genConfig.speed /= TtsEngine.owoShift() // cancel the duration change from the resample in ttsCallback
         tts.generateWithConfigAndCallback(
             text = genText,
@@ -128,6 +139,7 @@ class TtsService : TextToSpeechService() {
     // This MUST be a member function so we can use the ::ttsCallback reference
     private fun ttsCallback(floatSamples: FloatArray): Int {
         val cb = currentSynthesisCallback ?: return 0
+        if (!firstAudioLogged) { firstAudioLogged = true; lat("first audio chunk from model (${floatSamples.size} samples)") }
         val pitch = currentPitch
 
         val samples: ByteArray

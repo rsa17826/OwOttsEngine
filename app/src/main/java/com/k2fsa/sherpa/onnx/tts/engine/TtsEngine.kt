@@ -96,7 +96,9 @@ object TtsEngine {
         val modelDir = "$externalFilesDir/$lang$country"
 
         if (modelType == "vits-piper" && !phonemizerInitialized) {
+            val t = android.os.SystemClock.elapsedRealtime()
             piperPhonemizeInitialize(context)
+            Log.i(TAG, "LATENCY piperPhonemizeInitialize took ${android.os.SystemClock.elapsedRealtime() - t} ms")
             phonemizerInitialized = true
         }
 
@@ -124,7 +126,9 @@ object TtsEngine {
             model = config.model.copy(debug = false)
         )
 
+        val tLoad = android.os.SystemClock.elapsedRealtime()
         tts = OfflineTts(assetManager = null, config = configDebugOff)
+        Log.i(TAG, "LATENCY OfflineTts model load took ${android.os.SystemClock.elapsedRealtime() - tLoad} ms")
         ttsCache[lang] = tts!!
         Log.i(TAG, "TTS cache size:"+ ttsCache.size)
     }
