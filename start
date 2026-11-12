@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+./gradlew assembleDebug && mv app/build/outputs/apk/*/*.apk ~/syncthing/applications/android/
