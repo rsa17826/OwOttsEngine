@@ -116,7 +116,8 @@ object TtsEngine {
             dataDir = "", // ignored since sherpa-onnx v2.0.0
             dictDir = dictDir ?: "",
             ruleFsts = ruleFsts ?: "",
-            ruleFars = ruleFars ?: ""
+            ruleFars = ruleFars ?: "",
+            numThreads = minOf(4, Runtime.getRuntime().availableProcessors())
         )
 
         val configDebugOff = config.copy(  // create a new instance with debug switched off
@@ -149,7 +150,11 @@ object TtsEngine {
         val result = piperPhonemizeText(text, voice)
             ?: throw RuntimeException("Failed to phonemize the text")
         try {
-            return Array(result.numSentences) { i -> OwoPhonemes.apply(result.getPhonemes(i)) }
+            // split into short chunks (before the owo rules, which add commas for stutters) so the
+            // first audio is ready sooner; each chunk is generated and played as its own "sentence"
+            return Array(result.numSentences) { i -> OwoPhonemes.splitForStreaming(result.getPhonemes(i)) }
+                .flatMap { chunks -> chunks.map { OwoPhonemes.apply(it) } }
+                .toTypedArray()
         } finally {
             result.close()
         }

@@ -12,7 +12,37 @@ import kotlin.random.Random
 object OwoPhonemes {
     private const val STRESS = "ˈˌ"
     private const val VOWELS = "aeiouæɑɒɔəɛɜɪʊʌɐɚɝɨʉøœyɯɤɘɵɞ"
-
+/**
+     * Splits one sentence's phonemes into short chunks so synthesis can start playing sooner:
+     * sherpa-onnx emits audio once per "sentence", and a model can't start a sentence's audio
+     * until it has generated all of it. Cuts after , ; : once a chunk has [minLen] phonemes,
+     * and at the last space once a chunk reaches [maxLen].
+     */
+    fun splitForStreaming(s: IntArray, minLen: Int = 12, maxLen: Int = 70): List<IntArray> {
+        val out = mutableListOf<IntArray>()
+        fun add(from: Int, to: Int) {
+            val chunk = s.copyOfRange(from, to).dropWhile { it == ' '.code }.toIntArray()
+            if (chunk.isNotEmpty()) out.add(chunk)
+        }
+        var start = 0
+        var lastSpace = -1
+        for (i in s.indices) {
+            val c = s[i]
+            if (c == ' '.code) lastSpace = i
+            val len = i + 1 - start
+            if ((c == ','.code || c == ';'.code || c == ':'.code) && len >= minLen) {
+                add(start, i + 1)
+                start = i + 1
+                lastSpace = -1
+            } else if (len >= maxLen && lastSpace > start) {
+                add(start, lastSpace)
+                start = lastSpace + 1
+                lastSpace = -1
+            }
+        }
+        add(start, s.size)
+        return out
+    }
     private val rules: List<(String) -> String> = listOf(
         ::rToW,
         ::nVowelToNy,
